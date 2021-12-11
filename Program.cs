@@ -4,60 +4,93 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Net;
 
 using Azure;
 using Azure.DigitalTwins.Core;
 using Azure.Identity;
 
-namespace ClientAppAuthenticationCode
+namespace CreateAndInitialization
 {
     class Program
     {
+        private const string adtInstanceUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net/models?api-version=2020-10-31";
+
         static async Task Main(string[] args)
         {
+            string token; 
+            // Read token from local file
+            using (StreamReader readtext = new StreamReader(@"D:\Studium\SemesterArbeit\Thesis\token.txt"))
+            {
+                token = readtext.ReadLine();
+            }
 
-            Console.WriteLine("helllo world");
-            string adtInstanceUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net";
+            // Upload models
+            //await CreateModel(token);
 
-            var credential = new DefaultAzureCredential();
-            var client = new DigitalTwinsClient(new Uri(adtInstanceUrl), credential);
-            Console.WriteLine($"Service client created – ready to go");
+            //Add Twin, whose $dtID is PTLB, and ID is PTLB too. One of them should be renamed.  For uploading twins, each of them need a specific url
+            string postUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net/digitaltwins/PTLB?api-version=2020-10-31";
+            await AddTwin(postUrl, token);
+   
+        }
 
-            Console.WriteLine();
+        private static async Task CreateModel(string token)
+        {
             Console.WriteLine($"Upload a model");
-            string dtdl = File.ReadAllText(@"D:\Studium\SemesterArbeit\Thesis\Pizza.json");
-            var models = new List<string> { dtdl };
-            // Upload the model to the service
 
-            try
+            var httpWebRequest = (HttpWebRequest)WebRequest.Create(adtInstanceUrl);
+            httpWebRequest.ContentType = "application/json";
+            httpWebRequest.Method = "POST";
+
+            // OAuth 2.0 authentication using bearer token 
+            httpWebRequest.PreAuthenticate = true;
+            httpWebRequest.Accept = "application/json";
+            httpWebRequest.Headers.Add("Authorization", "Bearer " + token);
+
+            // Read local Json file
+            using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
             {
-                await client.CreateModelsAsync(models);
-                Console.WriteLine("Models uploaded to the instance:");
+                StreamReader model = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\DEXPI\test.json");
+                string json = model.ReadToEnd();
+                streamWriter.Write(json);
             }
-            catch (RequestFailedException e)
+
+            // Catch response from server
+            var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
+            using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
             {
-                Console.WriteLine($"Upload model error: {e.Status}: {e.Message}");
-            }
-
-
-            var twinData = new BasicDigitalTwin();
-            twinData.Metadata.ModelId = "dtmi:example:SampleModel;1";
-            twinData.Contents.Add("data", $"Hello World!");
-
-            string prefix = "sampleTwin-";
-            for (int i = 0; i < 3; i++)
-            {
-                try
-                {
-                    twinData.Id = $"{prefix}{i}";
-                    await client.CreateOrReplaceDigitalTwinAsync<BasicDigitalTwin>(twinData.Id, twinData);
-                    Console.WriteLine($"Created twin: {twinData.Id}");
-                }
-                catch (RequestFailedException e)
-                {
-                    Console.WriteLine($"Create twin error: {e.Status}: {e.Message}");
-                }
+                var result = streamReader.ReadToEnd();
             }
         }
+
+        private static async Task AddTwin(string postUrl, string token)
+        {
+            Console.WriteLine($"Add Twin");
+            var httpWebRequest = (HttpWebRequest)WebRequest.Create(postUrl);
+            httpWebRequest.ContentType = "application/json";
+            httpWebRequest.Method = "PUT";
+
+            // OAuth 2.0 authentication using bearer token 
+            httpWebRequest.PreAuthenticate = true;
+            httpWebRequest.Accept = "application/json";
+            httpWebRequest.Headers.Add("Authorization", "Bearer " + token);
+
+            // Read local Json file
+            using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
+            {
+                StreamReader model = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\DEXPI\DT\PTLB.json");
+                string json = model.ReadToEnd();
+                streamWriter.Write(json);
+            }
+           
+            // Catch response from server
+            var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
+            using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
+            {
+                var result = streamReader.ReadToEnd();
+            }
+            
+        }
+
     }
 }
