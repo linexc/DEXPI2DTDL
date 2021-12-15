@@ -8,99 +8,11 @@ using System.Net;
 using System.Xml;
 using System.Xml.Schema;
 
-using XMLExtract;
-
 using Azure;
 using Azure.DigitalTwins.Core;
 using Azure.Identity;
 
 namespace CreateAndInitialization
-{
-    class Program
-    {
-        private const string adtInstanceUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net/models?api-version=2020-10-31";
-
-        static async Task Main(string[] args)
-        {
-            string token; 
-            // Read token from local file
-            using (StreamReader readtext = new StreamReader(@"D:\Studium\SemesterArbeit\Thesis\token.txt"))
-            {
-                token = readtext.ReadLine();
-            }
-
-            // Upload models
-            //await CreateModel(token);
-
-            //Add Twin, whose $dtID is PTLB, and ID is PTLB too. One of them should be renamed.  For uploading twins, each of them need a specific url
-            string postUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net/digitaltwins/PTLB?api-version=2020-10-31";
-            await AddTwin(postUrl, token);
-   
-        }
-
-        private static async Task CreateModel(string token)
-        {
-            Console.WriteLine($"Upload a model");
-
-            var httpWebRequest = (HttpWebRequest)WebRequest.Create(adtInstanceUrl);
-            httpWebRequest.ContentType = "application/json";
-            httpWebRequest.Method = "POST";
-
-            // OAuth 2.0 authentication using bearer token 
-            httpWebRequest.PreAuthenticate = true;
-            httpWebRequest.Accept = "application/json";
-            httpWebRequest.Headers.Add("Authorization", "Bearer " + token);
-
-            // Read local Json file
-            using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
-            {
-                StreamReader model = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\DEXPI\test.json");
-                string json = model.ReadToEnd();
-                streamWriter.Write(json);
-            }
-
-            // Catch response from server
-            var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
-            using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
-            {
-                var result = streamReader.ReadToEnd();
-            }
-        }
-
-        private static async Task AddTwin(string postUrl, string token)
-        {
-            Console.WriteLine($"Add Twin");
-            var httpWebRequest = (HttpWebRequest)WebRequest.Create(postUrl);
-            httpWebRequest.ContentType = "application/json";
-            httpWebRequest.Method = "PUT";
-
-            // OAuth 2.0 authentication using bearer token 
-            httpWebRequest.PreAuthenticate = true;
-            httpWebRequest.Accept = "application/json";
-            httpWebRequest.Headers.Add("Authorization", "Bearer " + token);
-
-            // Read local Json file
-            using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
-            {
-                StreamReader model = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\DEXPI\DT\PTLB.json");
-                string json = model.ReadToEnd();
-                streamWriter.Write(json);
-            }
-           
-            // Catch response from server
-            var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
-            using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
-            {
-                var result = streamReader.ReadToEnd();
-            }
-            
-        }
-
-    }
-}
-
-
-namespace XMLExtract
 {
     struct Equipment
     {
@@ -143,12 +55,11 @@ namespace XMLExtract
         public string GenericAttributeValue;
     }
 
-    class Program
+    class XMLExtract
     {
-        private const string adtInstanceUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net/models?api-version=2020-10-31";
 
         // Extract the information from DEXPI XML, and save in two types of struct respectively.
-        static void Main(string[] args)
+        public static async Task Main2()
         {
             List<Equipment> EQ = new List<Equipment>();
             List<PipingNetworkSegment> PNS = new List<PipingNetworkSegment>();
@@ -156,8 +67,14 @@ namespace XMLExtract
             XmlDocument Document = new XmlDocument();
             XmlReaderSettings settings = new XmlReaderSettings();
             settings.IgnoreComments = true;//Ignore commends in the documents
-            XmlReader reader = XmlReader.Create(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\DEXPI\new.xml", settings);
+            XmlReader reader = XmlReader.Create(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\DEXPI\kopie.xml", settings);
             Document.Load(reader);
+            string token;
+            // Read token from local file
+            using (StreamReader readtext = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\token.txt"))
+            {
+                token = readtext.ReadLine();
+            }
 
             // select root node
             XmlNode root = Document.SelectSingleNode("PlantModel");
@@ -401,31 +318,37 @@ namespace XMLExtract
 
             string EQjson = "{ \"$metadata\": {" +
                 "  \"$model\": \"dtmi:dtdl:K1;1\" }, " +
-                "\"displayName\": \"K2\"," +
                 "\"ID\": \"K3\"," +
                 "\"TagName\": \"K4\"}";
 
             string PNSJson = "{ \"$metadata\": {" +
                 "  \"$model\": \"dtmi:dtdl:K1;1\" }, " +
-                "\"ID\": \"K2\"" +
+                "\"ID\": \"K2\"," +
                 "\"TagName\": \"K3\"," +
                 "\"ComponentClass\": \"K4\"," +
                 "\"ColorCodeAssignmentClass\": \"K5\"," +
-                "\"NominalDiameterRepresentationAssignmentClass\":\"K6\",}";
+                "\"NominalDiameterRepresentationAssignmentClass\":\"K6\"}";
 
-            // extract info from struct and merge into a json string only for creating DT without relationships
+            // extract info from struct and merge into a json string only for creating DT (not DTDL models) without relationships
             if (root != null)
             {
                 for (int a = 0; a < EQ.Count; a++)
                 {
                     string tmp = EQjson;
                     string url = postUrl;
-                    EQDT[a] = tmp.Replace("K1", EQ[a].EquipmentComponentClass).Replace("K2", EQ[a].EquipmentComponentClass).Replace("K3", EQ[a].EquipmentID).Replace("K4", EQ[a].EquipmentTagName);
-                    if (EQ[a].ChildEquipmentID != null)
+                    //EQDT[a] = tmp.Replace("K1", EQ[a].EquipmentComponentClass).Replace("K2", EQ[a].EquipmentComponentClass).Replace("K3", EQ[a].EquipmentID).Replace("K4", EQ[a].EquipmentTagName);
+                    if (EQ[a].ChildEquipmentID != null) // Acquire the subequipment of a equipment. Such as heater or motor.
                     {
-                        tmp = tmp.Replace("K1", EQ[a].ChildEquipmentComponentClass).Replace("K2", EQ[a].ChildEquipmentComponentClass).Replace("K3", EQ[a].ChildEquipmentID).Replace("K4", EQ[a].ChildTagName);
-                        url = url.Replace("THISMODEL", EQ[a].EquipmentID);
+                        tmp = tmp.Replace("K1", EQ[a].EquipmentComponentClass + "With" + EQ[a].ChildEquipmentComponentClass).Replace("K3", EQ[a].ChildEquipmentID).Replace("K4", EQ[a].ChildTagName);
                     }
+                    else
+                    {
+                        tmp = tmp.Replace("K1", EQ[a].EquipmentComponentClass).Replace("K3", EQ[a].EquipmentID).Replace("K4", EQ[a].EquipmentTagName);
+                    }
+                    url = url.Replace("THISMODEL", EQ[a].EquipmentID);
+                    // await AddTwin(url,tmp, token);
+                    
+
                 }
 
                 for (int a = 0; a < PNS.Count; a++)
@@ -460,9 +383,8 @@ namespace XMLExtract
 
                         tmp = tmp.Replace("K2", PNS[a].PipingNetworkSegmentComponent[b].EquipmentID).Replace("K3", PNS[a].PipingNetworkSegmentComponent[b].EquipmentTagName).Replace("K4", PNS[a].PipingNetworkSegmentComponent[b].EquipmentComponentClass).Replace("K5", color).Replace("K6", NominalDiameter);
                         url = url.Replace("THISMODEL", PNS[a].PipingNetworkSegmentComponent[b].EquipmentID);
+                       // await AddTwin(url, tmp, token);
                         // ToDo: how to extract the attribute for customed value
-
-
                     }
                 }
             }
@@ -471,7 +393,7 @@ namespace XMLExtract
             string relationship = "{ " +
                 "\"$targetId\": \"myTargetTwin\"," +
                 "\"$relationshipName\": \"myRelationship\" }";
-            string AddRelationshipUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net/digitaltwins/targetId/relationships/relationshipId?api-version=2020-10-31"; // post relationship link
+            string AddRelationshipUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net/digitaltwins/SourceTwin/relationships/relationshipId?api-version=2020-10-31"; // post relationship link
 
             if (root != null)
             {
@@ -483,19 +405,23 @@ namespace XMLExtract
                     {
                         tmp = relationship;
                         url = AddRelationshipUrl;
+                        /*
                         if (x.ConnectionFromNode != "")
                         {
-                            tmp = tmp.Replace("myRelationship", "From").Replace("myTargetTwin", x.ConnectionFromID);
+                            tmp = tmp.Replace("myRelationship", "connects").Replace("myTargetTwin", x.ConnectionFromID);
                             url = url.Replace("targetId", x.ConnectionFromID).Replace("relationshipId", "From");
                         }
-
-                        tmp = relationship;
-                        url = AddRelationshipUrl;
+                        */
+                        
                         if (x.ConnectionToID != "")
                         {
-                            tmp = tmp.Replace("myRelationship", "To").Replace("myTargetTwin", x.ConnectionToID);
-                            url = url.Replace("targetId", x.ConnectionToID).Replace("relationshipId", "To");
+                            tmp = tmp.Replace("myRelationship", "to").Replace("myTargetTwin", x.ConnectionToID);
+                            url = url.Replace("SourceTwin", x.ConnectionFromID).Replace("relationshipId", x.ConnectionToID);
+
                         }
+                        Console.WriteLine(tmp);
+                        Console.WriteLine(url);
+                        // await AddTwin(url, tmp, token);
                     }
                 }
 
@@ -503,5 +429,115 @@ namespace XMLExtract
 
 
         }
+        private static async Task AddTwin(string postUrl,string json, string token)
+        {
+            Console.WriteLine($"Add Twin");
+            var httpWebRequest = (HttpWebRequest)WebRequest.Create(postUrl);
+            httpWebRequest.ContentType = "application/json";
+            httpWebRequest.Method = "PUT";
+
+            // OAuth 2.0 authentication using bearer token 
+            httpWebRequest.PreAuthenticate = true;
+            httpWebRequest.Accept = "application/json";
+            httpWebRequest.Headers.Add("Authorization", "Bearer " + token);
+
+            // Read local Json file
+            using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
+            {
+                streamWriter.Write(json);
+            }
+
+            // Catch response from server
+            var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
+            using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
+            {
+                var result = streamReader.ReadToEnd();
+            }
+
+        }
+    }
+    // main class of this program
+    class Program
+    {
+        private const string adtInstanceUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net/models?api-version=2020-10-31";
+
+        static async Task Main(string[] args)
+        {
+            string token; 
+            // Read token from local file
+            using (StreamReader readtext = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\token.txt"))
+            {
+                token = readtext.ReadLine();
+            }
+
+            // Upload models
+            //await CreateModel(token);
+
+            //Add Twins using REST API
+            await XMLExtract.Main2();
+   
+        }
+
+        private static async Task CreateModel(string token)
+        {
+            Console.WriteLine($"Upload a model");
+
+            var httpWebRequest = (HttpWebRequest)WebRequest.Create(adtInstanceUrl);
+            httpWebRequest.ContentType = "application/json";
+            httpWebRequest.Method = "POST";
+
+            // OAuth 2.0 authentication using bearer token 
+            httpWebRequest.PreAuthenticate = true;
+            httpWebRequest.Accept = "application/json";
+            httpWebRequest.Headers.Add("Authorization", "Bearer " + token);
+
+            // Read local Json file
+            using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
+            {
+                StreamReader model = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\DTDLmodels\DTDL.json");
+                string json = model.ReadToEnd();
+                streamWriter.Write(json);
+            }
+
+            // Catch response from server
+            var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
+            using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
+            {
+                var result = streamReader.ReadToEnd();
+            }
+        }
+
+        /*
+        private static async Task AddTwin(string postUrl, string token)
+        {
+            Console.WriteLine($"Add Twin");
+            var httpWebRequest = (HttpWebRequest)WebRequest.Create(postUrl);
+            httpWebRequest.ContentType = "application/json";
+            httpWebRequest.Method = "PUT";
+
+            // OAuth 2.0 authentication using bearer token 
+            httpWebRequest.PreAuthenticate = true;
+            httpWebRequest.Accept = "application/json";
+            httpWebRequest.Headers.Add("Authorization", "Bearer " + token);
+
+            // Read local Json file
+            using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
+            {
+                StreamReader model = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\DEXPI\DT\PTLB.json");
+                string json = model.ReadToEnd();
+                streamWriter.Write(json);
+            }
+           
+            // Catch response from server
+            var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
+            using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
+            {
+                var result = streamReader.ReadToEnd();
+            }
+            
+        }
+        */
+        
+
     }
 }
