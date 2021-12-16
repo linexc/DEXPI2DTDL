@@ -339,14 +339,21 @@ namespace CreateAndInitialization
                     //EQDT[a] = tmp.Replace("K1", EQ[a].EquipmentComponentClass).Replace("K2", EQ[a].EquipmentComponentClass).Replace("K3", EQ[a].EquipmentID).Replace("K4", EQ[a].EquipmentTagName);
                     if (EQ[a].ChildEquipmentID != null) // Acquire the subequipment of a equipment. Such as heater or motor.
                     {
-                        tmp = tmp.Replace("K1", EQ[a].EquipmentComponentClass + "With" + EQ[a].ChildEquipmentComponentClass).Replace("K3", EQ[a].ChildEquipmentID).Replace("K4", EQ[a].ChildTagName);
+                        tmp = tmp.Replace("K1", EQ[a].ChildEquipmentComponentClass).Replace("K3", EQ[a].ChildEquipmentID).Replace("K4", EQ[a].ChildTagName);
+                        url = url.Replace("THISMODEL", EQ[a].ChildEquipmentID);
+                        Console.WriteLine(tmp);
+                        Console.WriteLine(url);
+                        //await AddTwin(url, tmp, token);
+                        tmp = EQjson;
+                        url = postUrl;
                     }
-                    else
-                    {
-                        tmp = tmp.Replace("K1", EQ[a].EquipmentComponentClass).Replace("K3", EQ[a].EquipmentID).Replace("K4", EQ[a].EquipmentTagName);
-                    }
+                    
+                    tmp = tmp.Replace("K1", EQ[a].EquipmentComponentClass).Replace("K3", EQ[a].EquipmentID).Replace("K4", EQ[a].EquipmentTagName);
                     url = url.Replace("THISMODEL", EQ[a].EquipmentID);
-                    // await AddTwin(url,tmp, token);
+                    
+                    Console.WriteLine(tmp);
+                    Console.WriteLine(url);
+                    //await AddTwin(url,tmp, token);
                     
 
                 }
@@ -383,7 +390,9 @@ namespace CreateAndInitialization
 
                         tmp = tmp.Replace("K2", PNS[a].PipingNetworkSegmentComponent[b].EquipmentID).Replace("K3", PNS[a].PipingNetworkSegmentComponent[b].EquipmentTagName).Replace("K4", PNS[a].PipingNetworkSegmentComponent[b].EquipmentComponentClass).Replace("K5", color).Replace("K6", NominalDiameter);
                         url = url.Replace("THISMODEL", PNS[a].PipingNetworkSegmentComponent[b].EquipmentID);
-                       // await AddTwin(url, tmp, token);
+                        Console.WriteLine(tmp);
+                        Console.WriteLine(url);
+                        //await AddTwin(url, tmp, token);
                         // ToDo: how to extract the attribute for customed value
                     }
                 }
@@ -405,23 +414,17 @@ namespace CreateAndInitialization
                     {
                         tmp = relationship;
                         url = AddRelationshipUrl;
-                        /*
-                        if (x.ConnectionFromNode != "")
-                        {
-                            tmp = tmp.Replace("myRelationship", "connects").Replace("myTargetTwin", x.ConnectionFromID);
-                            url = url.Replace("targetId", x.ConnectionFromID).Replace("relationshipId", "From");
-                        }
-                        */
                         
-                        if (x.ConnectionToID != "")
+                        if (x.ConnectionToID !="")
                         {
-                            tmp = tmp.Replace("myRelationship", "to").Replace("myTargetTwin", x.ConnectionToID);
-                            url = url.Replace("SourceTwin", x.ConnectionFromID).Replace("relationshipId", x.ConnectionToID);
+                            tmp = tmp.Replace("myRelationship", "To").Replace("myTargetTwin", x.ConnectionToID);
+                            url = url.Replace("SourceTwin", x.ConnectionFromID).Replace("relationshipId", x.ConnectionFromID + "To" + x.ConnectionToID);
+                            Console.WriteLine(tmp);
+                            Console.WriteLine(url);
+                            await AddTwin(url, tmp, token);
 
                         }
-                        Console.WriteLine(tmp);
-                        Console.WriteLine(url);
-                        // await AddTwin(url, tmp, token);
+                        
                     }
                 }
 
