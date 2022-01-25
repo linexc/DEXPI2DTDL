@@ -57,21 +57,23 @@ namespace CreateAndInitialization
 
     class XMLExtract
     {
+        public static string tokenLocation = @"D:\Study\LRZSyncShare\Semesterarbeit -- Yu Mu\Material\MyJogurt\token.txt";
+        private static string xmlLocation = @"D:\Study\LRZSyncShare\Semesterarbeit -- Yu Mu\Material\MyJogurt\DEXPI\kopie.xml";
+        public static List<Equipment> EQ = new List<Equipment>();
+        public static List<PipingNetworkSegment> PNS = new List<PipingNetworkSegment>();
 
         // Extract the information from DEXPI XML, and save in two types of struct respectively.
-        public static async Task Main2()
+        public static async Task AddTwin()
         {
-            List<Equipment> EQ = new List<Equipment>();
-            List<PipingNetworkSegment> PNS = new List<PipingNetworkSegment>();
 
             XmlDocument Document = new XmlDocument();
             XmlReaderSettings settings = new XmlReaderSettings();
             settings.IgnoreComments = true;//Ignore commends in the documents
-            XmlReader reader = XmlReader.Create(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\DEXPI\kopie.xml", settings);
+            XmlReader reader = XmlReader.Create(xmlLocation, settings);
             Document.Load(reader);
             string token;
             // Read token from local file
-            using (StreamReader readtext = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\token.txt"))
+            using (StreamReader readtext = new StreamReader(tokenLocation))
             {
                 token = readtext.ReadLine();
             }
@@ -336,14 +338,11 @@ namespace CreateAndInitialization
                 {
                     string tmp = EQjson;
                     string url = postUrl;
-                    //EQDT[a] = tmp.Replace("K1", EQ[a].EquipmentComponentClass).Replace("K2", EQ[a].EquipmentComponentClass).Replace("K3", EQ[a].EquipmentID).Replace("K4", EQ[a].EquipmentTagName);
+                   
                     if (EQ[a].ChildEquipmentID != null) // Acquire the subequipment of a equipment. Such as heater or motor.
                     {
                         tmp = tmp.Replace("K1", EQ[a].ChildEquipmentComponentClass).Replace("K3", EQ[a].ChildEquipmentID).Replace("K4", EQ[a].ChildTagName);
                         url = url.Replace("THISMODEL", EQ[a].ChildEquipmentID);
-                        Console.WriteLine(tmp);
-                        Console.WriteLine(url);
-                        //await AddTwin(url, tmp, token);
                         tmp = EQjson;
                         url = postUrl;
                     }
@@ -353,7 +352,7 @@ namespace CreateAndInitialization
                     
                     Console.WriteLine(tmp);
                     Console.WriteLine(url);
-                    //await AddTwin(url,tmp, token);
+                    await Upload(url,tmp, token);
                     
 
                 }
@@ -392,8 +391,260 @@ namespace CreateAndInitialization
                         url = url.Replace("THISMODEL", PNS[a].PipingNetworkSegmentComponent[b].EquipmentID);
                         Console.WriteLine(tmp);
                         Console.WriteLine(url);
-                        //await AddTwin(url, tmp, token);
+                        await Upload(url, tmp, token);
                         // ToDo: how to extract the attribute for customed value
+                    }
+                }
+            }
+
+        }
+
+        public static async Task AddRelationship()
+        {
+
+            XmlDocument Document = new XmlDocument();
+            XmlReaderSettings settings = new XmlReaderSettings();
+            settings.IgnoreComments = true;//Ignore commends in the documents
+            XmlReader reader = XmlReader.Create(xmlLocation, settings);
+            Document.Load(reader);
+            string token;
+            // Read token from local file
+            using (StreamReader readtext = new StreamReader(tokenLocation))
+            {
+                token = readtext.ReadLine();
+            }
+
+            // select root node
+            XmlNode root = Document.SelectSingleNode("PlantModel");
+            // get all child nodes of root node
+            if (root != null)
+            {
+                XmlElement PlantModel = (XmlElement)root;
+                XmlNodeList PlantModelChild = PlantModel.ChildNodes;
+                for (int a = 0; a < PlantModelChild.Count; a++)
+                {
+                    string pointname1 = PlantModelChild.Item(a).Name;
+
+                    if (pointname1 == "Equipment")
+                    {
+                        Equipment newEQ = new Equipment();
+                        newEQ.EquipmentID = PlantModelChild.Item(a).Attributes["ID"].Value;
+                        newEQ.EquipmentComponentClass = PlantModelChild.Item(a).Attributes["ComponentClass"].Value;
+                        newEQ.EquipmentTagName = PlantModelChild.Item(a).Attributes["TagName"].Value;
+                        XmlNodeList EquipmentChild = PlantModelChild.Item(a).ChildNodes;
+                        for (int b = 0; b < EquipmentChild.Count; b++)
+                        {
+                            string pointname2 = EquipmentChild.Item(b).Name;
+                            if (pointname2 == "ConnectionPoints")
+                            {
+                                XmlNodeList Node = EquipmentChild.Item(b).ChildNodes;
+                                newEQ.NodeID = new string[Node.Count];
+                                for (int c = 0; c < Node.Count; c++)
+                                {
+                                    newEQ.NodeID[c] = Node.Item(c).Attributes["ID"].Value;
+                                }
+                            }
+                            else if (pointname2 == "GenericAttributes")
+                            {
+                                XmlNodeList GenericAttributes = EquipmentChild.Item(b).ChildNodes;
+                                newEQ.EquipmentGenericAttribute = new GenericAttribute[GenericAttributes.Count];
+                                for (int c = 0; c < GenericAttributes.Count; c++)
+                                {
+                                    string pointname3 = GenericAttributes.Item(c).Name;
+                                    if (pointname3 == "GenericAttribute")
+                                    {
+                                        newEQ.EquipmentGenericAttribute[c].GenericAttributeName = GenericAttributes.Item(c).Attributes["Name"].Value;
+                                        newEQ.EquipmentGenericAttribute[c].GenericAttributeFormat = GenericAttributes.Item(c).Attributes["Units"].Value; // incert units into Format
+                                        newEQ.EquipmentGenericAttribute[c].GenericAttributeValue = GenericAttributes.Item(c).Attributes["Value"].Value;
+                                    }
+                                }
+                            }
+                            else if (pointname2 == "Equipment")
+                            {
+                                newEQ.ChildEquipmentID = EquipmentChild.Item(b).Attributes["ID"].Value;
+                                newEQ.ChildEquipmentComponentClass = EquipmentChild.Item(b).Attributes["ComponentClass"].Value;
+                                if (EquipmentChild.Item(b).Attributes["TagName"] is null)
+                                {
+                                    newEQ.ChildTagName = "";
+                                }
+                                else
+                                {
+                                    newEQ.ChildTagName = EquipmentChild.Item(b).Attributes["TagName"].Value;
+                                }
+
+                            }
+                        }
+                        EQ.Add(newEQ);
+                    }
+                    else if (pointname1 == "PipingNetworkSystem")
+                    {
+                        XmlNodeList PipingNetworkSegment = PlantModelChild.Item(a).ChildNodes;
+                        for (int b = 0; b < PipingNetworkSegment.Count; b++)
+                        {
+                            string pointname2 = PipingNetworkSegment.Item(b).Name;
+                            if (pointname2 == "PipingNetworkSegment")
+                            {
+                                PipingNetworkSegment newPNS = new PipingNetworkSegment();
+                                newPNS.PipingNetworkSegmentComponentClass = PipingNetworkSegment.Item(b).Attributes["ComponentClass"].Value;
+                                newPNS.PipingNetworkSegmentID = PipingNetworkSegment.Item(b).Attributes["ID"].Value;
+                                newPNS.PipingNetworkSegmentTagName = PipingNetworkSegment.Item(b).Attributes["TagName"].Value;
+                                newPNS.PipingNetworkSegmentComponent = new List<Equipment>();
+                                newPNS.PipingNetworkSegmentConnection = new List<Connection>();
+                                XmlNodeList PipingNetworkSegmentChild = PipingNetworkSegment.Item(b).ChildNodes;
+                                for (int c = 0; c < PipingNetworkSegmentChild.Count; c++)
+                                {
+                                    string pointname3 = PipingNetworkSegmentChild.Item(c).Name;
+                                    if (pointname3 == "GenericAttributes")
+                                    {
+                                        XmlNodeList GenericAttributes = PipingNetworkSegmentChild.Item(c).ChildNodes;
+                                        newPNS.PipingNetworkSegmentGenericAttribute = new GenericAttribute[GenericAttributes.Count];
+                                        for (int d = 0; d < GenericAttributes.Count; d++)
+                                        {
+                                            string pointname4 = GenericAttributes.Item(d).Name;
+                                            if (pointname4 == "GenericAttribute")
+                                            {
+                                                if (GenericAttributes.Item(d).Attributes["Name"] is null)
+                                                {
+                                                    newPNS.PipingNetworkSegmentGenericAttribute[d].GenericAttributeName = "";
+                                                }
+                                                else
+                                                {
+                                                    newPNS.PipingNetworkSegmentGenericAttribute[d].GenericAttributeName = GenericAttributes.Item(d).Attributes["Name"].Value;
+                                                }
+
+                                                if (GenericAttributes.Item(d).Attributes["Format"] is null)
+                                                {
+                                                    newPNS.PipingNetworkSegmentGenericAttribute[d].GenericAttributeFormat = "";
+                                                }
+                                                else
+                                                {
+                                                    newPNS.PipingNetworkSegmentGenericAttribute[d].GenericAttributeFormat = GenericAttributes.Item(d).Attributes["Format"].Value;
+                                                }
+
+                                                if (GenericAttributes.Item(d).Attributes["Value"] is null)
+                                                {
+                                                    newPNS.PipingNetworkSegmentGenericAttribute[d].GenericAttributeValue = "";
+                                                }
+                                                else
+                                                {
+                                                    newPNS.PipingNetworkSegmentGenericAttribute[d].GenericAttributeValue = GenericAttributes.Item(d).Attributes["Value"].Value;
+                                                }
+
+                                            }
+                                        }
+                                    }
+
+                                    else if (pointname3 == "PipingComponent")
+                                    {
+                                        Equipment newComponent = new Equipment();
+                                        newComponent.EquipmentID = PipingNetworkSegmentChild.Item(c).Attributes["ID"].Value;
+                                        newComponent.EquipmentComponentClass = PipingNetworkSegmentChild.Item(c).Attributes["ComponentClass"].Value;
+                                        newComponent.EquipmentTagName = PipingNetworkSegmentChild.Item(c).Attributes["TagName"].Value;
+                                        XmlNodeList PipingComponent = PipingNetworkSegmentChild.Item(c).ChildNodes;
+
+                                        for (int d = 0; d < PipingComponent.Count; d++)
+                                        {
+                                            string pointname4 = PipingComponent.Item(d).Name;
+                                            if (pointname4 == "ConnectionPoints")
+                                            {
+                                                XmlNodeList Node = PipingComponent.Item(d).ChildNodes;
+                                                newComponent.NodeID = new string[Node.Count];
+                                                for (int e = 0; e < Node.Count; e++)
+                                                {
+                                                    string pointname5 = Node.Item(e).Name;
+                                                    if (pointname5 == "Node")
+                                                    {
+                                                        newComponent.NodeID[e] = Node.Item(e).Attributes["ID"].Value;
+                                                    }
+                                                }
+                                            }
+                                            else if (pointname4 == "GenericAttributes")
+                                            {
+                                                XmlNodeList GenericAttributes = PipingComponent.Item(d).ChildNodes;
+                                                newComponent.EquipmentGenericAttribute = new GenericAttribute[GenericAttributes.Count];
+                                                for (int e = 0; e < GenericAttributes.Count; e++)
+                                                {
+                                                    string pointname5 = GenericAttributes.Item(e).Name;
+                                                    if (pointname5 == "GenericAttribute")
+                                                    {
+                                                        if (GenericAttributes.Item(e).Attributes["Name"] is null)
+                                                        {
+                                                            newComponent.EquipmentGenericAttribute[e].GenericAttributeName = "";
+                                                        }
+                                                        else
+                                                        {
+                                                            newComponent.EquipmentGenericAttribute[e].GenericAttributeName = GenericAttributes.Item(e).Attributes["Name"].Value;
+                                                        }
+
+                                                        if (GenericAttributes.Item(e).Attributes["Value"] is null)
+                                                        {
+                                                            newComponent.EquipmentGenericAttribute[e].GenericAttributeValue = "";
+                                                        }
+                                                        else
+                                                        {
+                                                            newComponent.EquipmentGenericAttribute[e].GenericAttributeValue = GenericAttributes.Item(e).Attributes["Value"].Value;
+                                                        }
+
+                                                        if (GenericAttributes.Item(e).Attributes["Format"] is null)
+                                                        {
+                                                            newComponent.EquipmentGenericAttribute[e].GenericAttributeFormat = "";
+                                                        }
+                                                        else
+                                                        {
+                                                            newComponent.EquipmentGenericAttribute[e].GenericAttributeFormat = GenericAttributes.Item(e).Attributes["Format"].Value;
+                                                        }
+                                                    }
+                                                }
+
+                                            }
+                                        }
+                                        newPNS.PipingNetworkSegmentComponent.Add(newComponent);
+                                    }
+                                    else if (pointname3 == "Connection")
+                                    {
+                                        Connection newConnection = new Connection();
+
+                                        if (PipingNetworkSegmentChild.Item(c).Attributes["FromID"] is null)
+                                        {
+                                            newConnection.ConnectionFromID = "";
+                                        }
+                                        else
+                                        {
+                                            newConnection.ConnectionFromID = PipingNetworkSegmentChild.Item(c).Attributes["FromID"].Value;
+                                        }
+
+                                        if (PipingNetworkSegmentChild.Item(c).Attributes["FromNode"] is null)
+                                        {
+                                            newConnection.ConnectionFromNode = "";
+                                        }
+                                        else
+                                        {
+                                            newConnection.ConnectionFromNode = PipingNetworkSegmentChild.Item(c).Attributes["FromNode"].Value;
+                                        }
+
+                                        if (PipingNetworkSegmentChild.Item(c).Attributes["ToID"] != null) // how to extend to anthoer variable? 
+                                        {
+                                            newConnection.ConnectionToID = PipingNetworkSegmentChild.Item(c).Attributes["ToID"].Value;
+                                        }
+                                        else
+                                        {
+                                            newConnection.ConnectionToID = "";
+                                        }
+                                        if (PipingNetworkSegmentChild.Item(c).Attributes["ToNode"] != null)
+                                        {
+                                            newConnection.ConnectionToNode = PipingNetworkSegmentChild.Item(c).Attributes["ToNode"].Value;
+                                        }
+                                        else
+                                        {
+                                            newConnection.ConnectionToNode = "";
+                                        }
+
+                                        newPNS.PipingNetworkSegmentConnection.Add(newConnection);
+                                    }
+                                }
+                                PNS.Add(newPNS);
+                            }
+                        }
                     }
                 }
             }
@@ -414,17 +665,17 @@ namespace CreateAndInitialization
                     {
                         tmp = relationship;
                         url = AddRelationshipUrl;
-                        
-                        if (x.ConnectionToID !="")
+
+                        if (x.ConnectionToID != "")
                         {
                             tmp = tmp.Replace("myRelationship", "To").Replace("myTargetTwin", x.ConnectionToID);
                             url = url.Replace("SourceTwin", x.ConnectionFromID).Replace("relationshipId", x.ConnectionFromID + "To" + x.ConnectionToID);
                             Console.WriteLine(tmp);
                             Console.WriteLine(url);
-                            await AddTwin(url, tmp, token);
+                            await Upload(url, tmp, token);
 
                         }
-                        
+
                     }
                 }
 
@@ -432,7 +683,8 @@ namespace CreateAndInitialization
 
 
         }
-        private static async Task AddTwin(string postUrl,string json, string token)
+
+        private static async Task Upload(string postUrl,string json, string token)
         {
             Console.WriteLine($"Add Twin");
             var httpWebRequest = (HttpWebRequest)WebRequest.Create(postUrl);
@@ -462,13 +714,14 @@ namespace CreateAndInitialization
     // main class of this program
     class Program
     {
+        public static string tokenLocation = @"D:\Study\LRZSyncShare\Semesterarbeit -- Yu Mu\Material\MyJogurt\token.txt";
         private const string adtInstanceUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net/models?api-version=2020-10-31";
 
         static async Task Main(string[] args)
         {
             string token; 
             // Read token from local file
-            using (StreamReader readtext = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\token.txt"))
+            using (StreamReader readtext = new StreamReader(tokenLocation))
             {
                 token = readtext.ReadLine();
             }
@@ -477,7 +730,10 @@ namespace CreateAndInitialization
             //await CreateModel(token);
 
             //Add Twins using REST API
-            await XMLExtract.Main2();
+            //await XMLExtract.AddTwin();
+
+            //Add Twins' Relationships
+            //await XMLExtract.AddRelationship();
    
         }
 
@@ -497,7 +753,7 @@ namespace CreateAndInitialization
             // Read local Json file
             using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
             {
-                StreamReader model = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\DTDLmodels\DTDL.json");
+                StreamReader model = new StreamReader(@"D:\Study\LRZSyncShare\Semesterarbeit -- Yu Mu\Material\MyJogurt\DTDLmodels\DTDL.json");
                 string json = model.ReadToEnd();
                 streamWriter.Write(json);
             }
@@ -510,37 +766,6 @@ namespace CreateAndInitialization
             }
         }
 
-        /*
-        private static async Task AddTwin(string postUrl, string token)
-        {
-            Console.WriteLine($"Add Twin");
-            var httpWebRequest = (HttpWebRequest)WebRequest.Create(postUrl);
-            httpWebRequest.ContentType = "application/json";
-            httpWebRequest.Method = "PUT";
-
-            // OAuth 2.0 authentication using bearer token 
-            httpWebRequest.PreAuthenticate = true;
-            httpWebRequest.Accept = "application/json";
-            httpWebRequest.Headers.Add("Authorization", "Bearer " + token);
-
-            // Read local Json file
-            using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
-            {
-                StreamReader model = new StreamReader(@"D:\Studium\SemesterArbeit\Sync+Share\Semesterarbeit -- Yu Mu\Material\MyJogurt\DEXPI\DT\PTLB.json");
-                string json = model.ReadToEnd();
-                streamWriter.Write(json);
-            }
-           
-            // Catch response from server
-            var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
-            using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
-            {
-                var result = streamReader.ReadToEnd();
-            }
-            
-        }
-        */
-        
 
     }
 }
