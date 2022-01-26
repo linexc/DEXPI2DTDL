@@ -24,10 +24,16 @@ namespace CreateAndInitialization
         public string ChildEquipmentID;
         public string ChildEquipmentComponentClass;
         public string ChildTagName;
-
+        public Position Position;
         public GenericAttribute[] EquipmentGenericAttribute;
     }
-
+    struct ProcessInstrumentationFunction
+    {
+        public string ProcessInstrumentationFunctionID;
+        public string ProcessInstrumentationFunctionTagName;
+        public string ProcessInstrumentationFunctionComponentClass;
+        public GenericAttribute[] ProcessInstrumentationFunctionGenericAttribute;
+    }
     struct PipingNetworkSegment
     {
         public string PipingNetworkSegmentID;
@@ -47,20 +53,31 @@ namespace CreateAndInitialization
         public string ConnectionToID;
         public string ConnectionToNode;
     }
-
+    struct Position
+    {
+        public Cooridnate Location;
+        public Cooridnate Axis;
+        public Cooridnate Reference;
+    }
+    struct Cooridnate
+    {
+        public string x;
+        public string y;
+        public string z;
+    }
     struct GenericAttribute
     {
         public string GenericAttributeName;
         public string GenericAttributeFormat;
         public string GenericAttributeValue;
     }
-
     class XMLExtract
     {
         public static string tokenLocation = @"D:\Study\LRZSyncShare\Semesterarbeit -- Yu Mu\Material\MyJogurt\token.txt";
         private static string xmlLocation = @"D:\Study\LRZSyncShare\Semesterarbeit -- Yu Mu\Material\MyJogurt\DEXPI\kopie.xml";
         public static List<Equipment> EQ = new List<Equipment>();
         public static List<PipingNetworkSegment> PNS = new List<PipingNetworkSegment>();
+        public static List<ProcessInstrumentationFunction> PIF = new List<ProcessInstrumentationFunction>();
 
         // Extract the information from DEXPI XML, and save in two types of struct respectively.
         public static async Task AddTwin()
@@ -310,12 +327,38 @@ namespace CreateAndInitialization
                             }
                         }
                     }
+                    else if (pointname1 == "ProcessInstrumentationFunction")
+                    {
+                        ProcessInstrumentationFunction newPIF = new ProcessInstrumentationFunction();
+                        newPIF.ProcessInstrumentationFunctionID = PlantModelChild.Item(a).Attributes["ID"].Value;
+                        newPIF.ProcessInstrumentationFunctionComponentClass = PlantModelChild.Item(a).Attributes["ComponentClass"].Value;
+                        newPIF.ProcessInstrumentationFunctionTagName = PlantModelChild.Item(a).Attributes["TagName"].Value;
+                        XmlNodeList ProcessInstrumentationFunctionChild = PlantModelChild.Item(a).ChildNodes;
+                        for (int b = 0; b < ProcessInstrumentationFunctionChild.Count; b++)
+                        {
+                            string pointname2 = ProcessInstrumentationFunctionChild.Item(b).Name;
+                            if (pointname2 == "GenericAttributes")
+                            {
+                                XmlNodeList GenericAttributes = ProcessInstrumentationFunctionChild.Item(b).ChildNodes;
+                                newPIF.ProcessInstrumentationFunctionGenericAttribute = new GenericAttribute[GenericAttributes.Count];
+                                for (int c = 0; c < GenericAttributes.Count; c++)
+                                {
+                                    string pointname3 = GenericAttributes.Item(c).Name;
+                                    if (pointname3 == "GenericAttribute")
+                                    {
+                                        newPIF.ProcessInstrumentationFunctionGenericAttribute[c].GenericAttributeName = GenericAttributes.Item(c).Attributes["Name"].Value;
+                                        newPIF.ProcessInstrumentationFunctionGenericAttribute[c].GenericAttributeFormat = GenericAttributes.Item(c).Attributes["Format"].Value;
+                                        newPIF.ProcessInstrumentationFunctionGenericAttribute[c].GenericAttributeValue = GenericAttributes.Item(c).Attributes["Value"].Value;
+                                    }
+                                }
+                                PIF.Add(newPIF);
+                            }
+                        }
+                        
+                    }
                 }
             }
 
-            string[] EQDT = new string[EQ.Count]; // storing Equipment digital twin 
-            List<string> ChildEQDT = new List<string>(); // 
-            string[] PNSDT = new string[PNS.Count]; // storing PNS digital twin
             string postUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net/digitaltwins/THISMODEL?api-version=2020-10-31"; // post link
 
             string EQjson = "{ \"$metadata\": {" +
@@ -331,6 +374,15 @@ namespace CreateAndInitialization
                 "\"ColorCodeAssignmentClass\": \"K5\"," +
                 "\"NominalDiameterRepresentationAssignmentClass\":\"K6\"}";
 
+            string PIFJson ="{ \"$metadata\": {" +
+                "  \"$model\": \"dtmi:dtdl:K1;1\" }, " +
+                "\"ID\": \"K2\"," +
+                "\"TagName\": \"K3\"," +
+                "\"ComponentClass\": \"K4\"," +
+                "\"ProcessInstrumentationFunctionNumberAssignmentClass\": \"K5\"," +
+                "\"ProcessInstrumentationFunctionCategoryAssignmentClass\":\"K6\","+
+                "\"ProcessInstrumentationFunctionModifierAssignmentClass\":\"K7\"}";
+
             // extract info from struct and merge into a json string only for creating DT (not DTDL models) without relationships
             if (root != null)
             {
@@ -341,15 +393,19 @@ namespace CreateAndInitialization
                    
                     if (EQ[a].ChildEquipmentID != null) // Acquire the subequipment of a equipment. Such as heater or motor.
                     {
+                        //Console.WriteLine(EQ[a].ChildEquipmentID);
                         tmp = tmp.Replace("K1", EQ[a].ChildEquipmentComponentClass).Replace("K3", EQ[a].ChildEquipmentID).Replace("K4", EQ[a].ChildTagName);
                         url = url.Replace("THISMODEL", EQ[a].ChildEquipmentID);
+                        Console.WriteLine(tmp);
+                        Console.WriteLine(url);
+                        await Upload(url, tmp, token);
                         tmp = EQjson;
                         url = postUrl;
                     }
                     
                     tmp = tmp.Replace("K1", EQ[a].EquipmentComponentClass).Replace("K3", EQ[a].EquipmentID).Replace("K4", EQ[a].EquipmentTagName);
                     url = url.Replace("THISMODEL", EQ[a].EquipmentID);
-                    
+
                     Console.WriteLine(tmp);
                     Console.WriteLine(url);
                     await Upload(url,tmp, token);
@@ -394,6 +450,36 @@ namespace CreateAndInitialization
                         await Upload(url, tmp, token);
                         // ToDo: how to extract the attribute for customed value
                     }
+                }
+
+                for (int a = 0; a < PIF.Count; a++)
+                {
+                    string tmp = PIFJson;
+                    string url = postUrl;
+                    tmp = tmp.Replace("K1", "Sensor").Replace("K2", PIF[a].ProcessInstrumentationFunctionID).Replace("K3", PIF[a].ProcessInstrumentationFunctionTagName).Replace("K4", PIF[a].ProcessInstrumentationFunctionComponentClass);
+                    foreach (var x in PIF[a].ProcessInstrumentationFunctionGenericAttribute)
+                    {
+                        if(x.GenericAttributeName == "ProcessInstrumentationFunctionNumberAssignmentClass")
+                        {
+                            tmp = tmp.Replace("K5", x.GenericAttributeValue);
+                        }
+                        else if(x.GenericAttributeName == "ProcessInstrumentationFunctionCategoryAssignmentClass")
+                        {
+                            tmp = tmp.Replace("K6", x.GenericAttributeValue);
+                        }
+                        else if(x.GenericAttributeName == "ProcessInstrumentationFunctionModifierAssignmentClass")
+                        {
+                            tmp = tmp.Replace("K7", x.GenericAttributeValue);
+                        }
+                        else
+                        {
+                            Console.WriteLine("new attributes are found");
+                        }
+                    }
+                    url = url.Replace("THISMODEL", PIF[a].ProcessInstrumentationFunctionID);
+                    Console.WriteLine(url);
+                    Console.WriteLine(tmp);
+                    await Upload(url, tmp, token);
                 }
             }
 
@@ -646,6 +732,35 @@ namespace CreateAndInitialization
                             }
                         }
                     }
+                    else if (pointname1 == "ProcessInstrumentationFunction")
+                    {
+                        ProcessInstrumentationFunction newPIF = new ProcessInstrumentationFunction();
+                        newPIF.ProcessInstrumentationFunctionID = PlantModelChild.Item(a).Attributes["ID"].Value;
+                        newPIF.ProcessInstrumentationFunctionComponentClass = PlantModelChild.Item(a).Attributes["ComponentClass"].Value;
+                        newPIF.ProcessInstrumentationFunctionTagName = PlantModelChild.Item(a).Attributes["TagName"].Value;
+                        XmlNodeList ProcessInstrumentationFunctionChild = PlantModelChild.Item(a).ChildNodes;
+                        for (int b = 0; b < ProcessInstrumentationFunctionChild.Count; b++)
+                        {
+                            string pointname2 = ProcessInstrumentationFunctionChild.Item(b).Name;
+                            if (pointname2 == "GenericAttributes")
+                            {
+                                XmlNodeList GenericAttributes = ProcessInstrumentationFunctionChild.Item(b).ChildNodes;
+                                newPIF.ProcessInstrumentationFunctionGenericAttribute = new GenericAttribute[GenericAttributes.Count];
+                                for (int c = 0; c < GenericAttributes.Count; c++)
+                                {
+                                    string pointname3 = GenericAttributes.Item(c).Name;
+                                    if (pointname3 == "GenericAttribute")
+                                    {
+                                        newPIF.ProcessInstrumentationFunctionGenericAttribute[c].GenericAttributeName = GenericAttributes.Item(c).Attributes["Name"].Value;
+                                        newPIF.ProcessInstrumentationFunctionGenericAttribute[c].GenericAttributeFormat = GenericAttributes.Item(c).Attributes["Format"].Value;
+                                        newPIF.ProcessInstrumentationFunctionGenericAttribute[c].GenericAttributeValue = GenericAttributes.Item(c).Attributes["Value"].Value;
+                                    }
+                                }
+                                PIF.Add(newPIF);
+                            }
+                        }
+
+                    }
                 }
             }
 
@@ -655,10 +770,30 @@ namespace CreateAndInitialization
                 "\"$relationshipName\": \"myRelationship\" }";
             string AddRelationshipUrl = "https://Yogurtmachine.api.wcus.digitaltwins.azure.net/digitaltwins/SourceTwin/relationships/relationshipId?api-version=2020-10-31"; // post relationship link
 
+
             if (root != null)
             {
                 string tmp = relationship;
                 string url = AddRelationshipUrl;
+
+                for (int a = 0; a < EQ.Count; a++)
+                {
+                    //Console.WriteLine(EQ[a].ChildEquipmentID);
+
+                    if (EQ[a].ChildEquipmentID != null)
+                    {
+                        tmp = tmp.Replace("myRelationship", "has").Replace("myTargetTwin", EQ[a].ChildEquipmentID);
+                        url = url.Replace("SourceTwin", EQ[a].EquipmentID).Replace("relationshipId", EQ[a].EquipmentID + "Has" + EQ[a].ChildEquipmentID);
+                        Console.WriteLine(tmp);
+                        Console.WriteLine(url);
+                        // update Equipment's relationship.(has)
+                        await Upload(url, tmp, token);
+                    }
+                    tmp = relationship;
+                    url = AddRelationshipUrl;
+
+                }
+
                 for (int a = 0; a < PNS.Count; a++)
                 {
                     foreach (var x in PNS[a].PipingNetworkSegmentConnection)
@@ -679,6 +814,24 @@ namespace CreateAndInitialization
                     }
                 }
 
+                for (int a = 0; a < PIF.Count;a++)
+                {
+                    tmp = relationship;
+                    url = AddRelationshipUrl;
+
+                    string PIFID = PIF[a].ProcessInstrumentationFunctionID.Split("S")[0];
+                    foreach (var x in EQ)
+                    {
+                        if (x.EquipmentID == PIFID)
+                        {
+                            tmp = tmp.Replace("myRelationship", "measuredBy").Replace("myTargetTwin",PIF[a].ProcessInstrumentationFunctionID);
+                            url = url.Replace("SourceTwin", x.EquipmentID).Replace("relationshipId", x.EquipmentID + "MeasuredBy" + PIF[a].ProcessInstrumentationFunctionID);
+                            Console.WriteLine(tmp);
+                            Console.WriteLine(url);
+                            await Upload(url, tmp, token);
+                        }
+                    }
+                }
             }
 
 
@@ -730,10 +883,10 @@ namespace CreateAndInitialization
             //await CreateModel(token);
 
             //Add Twins using REST API
-            //await XMLExtract.AddTwin();
+            await XMLExtract.AddTwin();
 
             //Add Twins' Relationships
-            //await XMLExtract.AddRelationship();
+            await XMLExtract.AddRelationship();
    
         }
 
